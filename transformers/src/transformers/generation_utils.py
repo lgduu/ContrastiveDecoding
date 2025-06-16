@@ -43,8 +43,8 @@ from .generation_logits_process import (
     TopKLogitsWarper,
     TopPLogitsWarper,
     TypicalLogitsWarper,
-    MinProbLogitsWarper,
-    EntrPLogitsWarper,
+    MinProbLogitsWarper,#新添的
+    EntrPLogitsWarper,#新添的
 )
 from .generation_stopping_criteria import (
     MaxLengthCriteria,
@@ -56,7 +56,7 @@ from .generation_stopping_criteria import (
 from .pytorch_utils import torch_int_div
 from .utils import ModelOutput, logging
 
-from .decoder_helper import post_process_reweight, post_process_easy, post_process_reweight_v2
+from .decoder_helper import post_process_reweight, post_process_easy, post_process_reweight_v2#新添的
 
 logger = logging.get_logger(__name__)
 
