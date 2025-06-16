@@ -664,8 +664,8 @@ class GenerationMixin:
         self,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        min_prob: Optional[float] = None,
-        relative_top: Optional[float] = None,
+        min_prob: Optional[float] = None, #新增选项
+        relative_top: Optional[float] = None, #新增选项
         typical_p: Optional[float] = None,
         temperature: Optional[float] = None,
         num_beams: Optional[int] = None,
@@ -684,7 +684,7 @@ class GenerationMixin:
         # instantiate warpers list
         warpers = LogitsProcessorList()
 
-        # LISA
+        # LISA。#这块改动非常大，几乎调控了顺序
 
         # the following idea is largely copied from this PR: https://github.com/huggingface/transformers/pull/5420/files
         # all samplers can be found in `generation_utils_samplers.py`
@@ -692,15 +692,15 @@ class GenerationMixin:
         #     warpers.append(TemperatureLogitsWarper(temperature))
         if top_k is not None and top_k != 0:
             warpers.append(TopKLogitsWarper(top_k=top_k, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
-        if min_prob is not None and min_prob != 0.0:
+        if min_prob is not None and min_prob != 0.0: #新增的
             warpers.append(MinProbLogitsWarper(min_prob=min_prob, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
-        if relative_top is not None and relative_top != 0.0: 
+        if relative_top is not None and relative_top != 0.0:  #新增的
             warpers.append(EntrPLogitsWarper(relative_top=relative_top, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
         if top_p is not None and top_p < 1.0:
             warpers.append(TopPLogitsWarper(top_p=top_p, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
         if typical_p is not None and typical_p < 1.0:
             warpers.append(TypicalLogitsWarper(mass=typical_p, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
-        if temperature is not None and temperature != 1.0:
+        if temperature is not None and temperature != 1.0:  #这个很奇怪放到了这里
             warpers.append(TemperatureLogitsWarper(temperature))
         # `LogitNormalization` should always be the last logit processor, when present
         if renormalize_logits is True:
@@ -889,7 +889,7 @@ class GenerationMixin:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        min_prob: Optional[float] = None,
+        min_prob: Optional[float] = None,#新增
         typical_p: Optional[float] = None,
         repetition_penalty: Optional[float] = None,
         bad_words_ids: Optional[Iterable[int]] = None,
