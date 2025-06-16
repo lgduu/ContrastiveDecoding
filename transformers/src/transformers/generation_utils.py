@@ -478,14 +478,14 @@ class GenerationMixin:
         """
         return logits
 
-    def post_hoc_logits_adjust_teacher_student(self, logits_teacher, logits_student, **kwargs):
+    def post_hoc_logits_adjust_teacher_student(self, logits_teacher, logits_student, **kwargs): #自己添
         '''
         Adjust logits post-hoc. 
         '''
         assert logits_student is not None
         return logits_teacher - kwargs['st_coef'] * logits_student
 
-    def post_hoc_mi_adjust_teacher_student(self, logits_teacher, logits_student, **kwargs):
+    def post_hoc_mi_adjust_teacher_student(self, logits_teacher, logits_student, **kwargs):#自己添
         '''
         Adjust logits post-hoc. 
         '''
