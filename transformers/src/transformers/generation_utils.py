@@ -1850,7 +1850,7 @@ class GenerationMixin:
         ```"""
         # init values
         logits_processor = logits_processor if logits_processor is not None else LogitsProcessorList()
-        logits_warper = logits_warper if logits_warper is not None else LogitsProcessorList()
+        logits_warper = logits_warper if logits_warper is not None else LogitsProcessorList() #多加了一句，没太大不一样
 
         stopping_criteria = stopping_criteria if stopping_criteria is not None else StoppingCriteriaList()
         if max_length is not None:
@@ -1888,10 +1888,10 @@ class GenerationMixin:
         unfinished_sequences = input_ids.new(input_ids.shape[0]).fill_(1)
         cur_len = input_ids.shape[-1]
 
-        # CONTRASTIVE
+        # CONTRASTIVE #新增的
         model_kwargs['teacher_student'] = model_kwargs.get('teacher_student', False)
         if model_kwargs['teacher_student']:
-            model_kwargs_student = model_kwargs["model_kwargs_student"]
+            model_kwargs_student = model_kwargs["model_kwargs_student"] #为止
 
 
 
@@ -1925,7 +1925,7 @@ class GenerationMixin:
 
             next_token_logits = outputs.logits[:, -1, :]
 
-            if model_kwargs['teacher_student']:
+            if model_kwargs['teacher_student']:  #核心改动很大不一样-1696
                 model_inputs_student =  model_kwargs['student_lm'].prepare_inputs_for_generation(input_ids, **model_kwargs_student)
                 outputs_student = model_kwargs['student_lm'](
                     **model_inputs_student,
@@ -1936,7 +1936,7 @@ class GenerationMixin:
                 next_token_logits_student = outputs_student.logits[:, -1, :]
                 next_token_logits_student = logits_warper_student(input_ids, next_token_logits_student)
 
-            # pre-process distribution
+            # pre-process distribution  #核心改动，计算出两个模型的next_tokens_scores，-1696
             next_tokens_scores = logits_processor(input_ids, next_token_logits)
             next_tokens_scores = logits_warper(input_ids, next_tokens_scores)
 
@@ -1960,8 +1960,8 @@ class GenerationMixin:
 
             # argmax
             if model_kwargs['teacher_student']:
-                next_tokens_scores = next_tokens_scores - model_kwargs['st_coef'] * next_token_logits_student
-            next_tokens = torch.argmax(next_tokens_scores, dim=-1)
+                next_tokens_scores = next_tokens_scores - model_kwargs['st_coef'] * next_token_logits_student #最核心的改动，两个scores相减
+            next_tokens = torch.argmax(next_tokens_scores, dim=-1) #这个一样-1718
 
             # finished sentences should have their next token be a padding token
             if eos_token_id is not None:
@@ -1976,10 +1976,10 @@ class GenerationMixin:
             )
             cur_len = cur_len + 1
 
-            if model_kwargs['teacher_student']:
+            if model_kwargs['teacher_student']:  #新增的
                 model_kwargs_student = self._update_model_kwargs_for_generation(
                     outputs_student, model_kwargs_student, is_encoder_decoder=self.config.is_encoder_decoder
-                )
+                ) #为止
 
             # if eos_token was found in one sentence, set sentence to finished
             if eos_token_id is not None:
@@ -2013,13 +2013,13 @@ class GenerationMixin:
         else:
             return input_ids
 
-    def sample(
+    def sample( # -1765
         self,
         input_ids: torch.LongTensor,
         logits_processor: Optional[LogitsProcessorList] = None,
         stopping_criteria: Optional[StoppingCriteriaList] = None,
         logits_warper: Optional[LogitsProcessorList] = None,
-        logits_warper_student: Optional[LogitsProcessorList] = None,
+        logits_warper_student: Optional[LogitsProcessorList] = None, #新增选项
         max_length: Optional[int] = None,
         pad_token_id: Optional[int] = None,
         eos_token_id: Optional[int] = None,
@@ -2204,7 +2204,7 @@ class GenerationMixin:
 
             next_token_logits = outputs.logits[:, -1, :]
 
-            if model_kwargs['teacher_student']:
+            if model_kwargs['teacher_student']:  #另一个改动
                 model_inputs_student =  model_kwargs['student_lm'].prepare_inputs_for_generation(input_ids, **model_kwargs_student)
                 outputs_student = model_kwargs['student_lm'](
                     **model_inputs_student,
@@ -2216,9 +2216,9 @@ class GenerationMixin:
                 next_token_logits_student = logits_warper_student(input_ids, next_token_logits_student)
                 # next_token_logits_student = nn.functional.log_softmax(
                 #     next_token_logits_student, dim=-1
-                # ) 
+                # ) #为止
 
-            # pre-process distribution
+            # pre-process distribution #-1951正常没有变化
             next_token_scores = logits_processor(input_ids, next_token_logits)
             next_token_scores = logits_warper(input_ids, next_token_scores)
 
@@ -2242,7 +2242,7 @@ class GenerationMixin:
 
             # sample
             if model_kwargs['teacher_student']:
-                next_token_scores = next_token_scores - model_kwargs['st_coef'] * next_token_logits_student
+                next_token_scores = next_token_scores - model_kwargs['st_coef'] * next_token_logits_student #核心部分，果然每个decoding方法都改写了一遍，似乎next_token_scores指的是专家模型，而next_token_logits_student指的是业余者模型
             probs = nn.functional.softmax(next_token_scores, dim=-1)
             next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
 
@@ -2296,12 +2296,12 @@ class GenerationMixin:
         else:
             return input_ids
 
-    def beam_search(
+    def beam_search( #-2022
         self,
         input_ids: torch.LongTensor,
         beam_scorer: BeamScorer,
-        logits_warper: Optional[LogitsProcessorList]=None,
-        logits_warper_student: Optional[LogitsProcessorList]=None,
+        logits_warper: Optional[LogitsProcessorList]=None,  #还有这个logits——warper
+        logits_warper_student: Optional[LogitsProcessorList]=None, #根据经验多输入进去的参数就是这个logits_warper_student
         logits_processor: Optional[LogitsProcessorList] = None,
         stopping_criteria: Optional[StoppingCriteriaList] = None,
         max_length: Optional[int] = None,
@@ -2465,14 +2465,14 @@ class GenerationMixin:
         beam_scores = torch.zeros((batch_size, num_beams), dtype=torch.float, device=input_ids.device)
         beam_scores[:, 1:] = -1e9
         beam_scores = beam_scores.view((batch_size * num_beams,))
-        first_marker = True
+        first_marker = True #多加这个干嘛的，控制beam_search只在第一轮执行某些操作
 
         this_peer_finished = False  # used by synced_gpus only
-        model_kwargs['teacher_student'] = model_kwargs.get('teacher_student', False)
+        model_kwargs['teacher_student'] = model_kwargs.get('teacher_student', False) #新增的
         model_kwargs['use_cap_student'] = model_kwargs.get('use_cap_student', False)
         model_kwargs['use_switch'] = model_kwargs.get('use_switch', False)
         if model_kwargs['teacher_student']:
-            model_kwargs_student = model_kwargs["model_kwargs_student"]
+            model_kwargs_student = model_kwargs["model_kwargs_student"] #为止
         while True:
 
             if synced_gpus:
@@ -2484,11 +2484,11 @@ class GenerationMixin:
                 # did all peers finish? the reduced sum will be 0.0 then
                 if this_peer_finished_flag.item() == 0.0:
                     break
-            # print(f'init, model_kwargs={model_kwargs.keys()}')
+            # print(f'init, model_kwargs={model_kwargs.keys()}') #新增的估计是用来调试的
             # print('input_ids', input_ids.shape) 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
             # print(model_inputs.keys(), model_inputs['input_ids'].shape, )
-            if model_kwargs['teacher_student']:
+            if model_kwargs['teacher_student']: #新增的就是扩充了学生模型这个选项
                 # print(f'student, model_kwargs={model_kwargs_student.keys()}, ')
                 # if 'past' in model_kwargs:
                 #     print(model_kwargs['past'][0][0].shape) 
@@ -2519,18 +2519,18 @@ class GenerationMixin:
                 next_token_logits_student = outputs_student.logits[:, -1, :]
                 next_token_logits_student = nn.functional.log_softmax(
                     next_token_logits_student, dim=-1
-                ) 
-                if model_kwargs['use_cap_student']: 
+                ) #到此为止就是计算学生模型的一些东西
+                if model_kwargs['use_cap_student']: #不明白这里为什么加了cap这个是什么意思，
                     cap_student = torch.sum(next_token_logits_student * next_token_logits_student.exp(), 
-                                            dim=-1)
-                    cap_student = cap_student.fill_(-0.5) 
-                if model_kwargs['use_switch']:
+                                            dim=-1) #似乎是计算信息熵
+                    cap_student = cap_student.fill_(-0.5) #这里似乎又给全部置换成-0。5了
+                if model_kwargs['use_switch']: #这是干什么什么选项
                     print(logits_warper_student)
                     switch_criteria_student = next_token_logits_student.clone()
 
                 next_token_logits_student = logits_warper_student(input_ids, next_token_logits_student)
                 ninf = float('-inf')
-                next_token_logits_student[next_token_logits_student == ninf] = float('inf')
+                next_token_logits_student[next_token_logits_student == ninf] = float('inf') #为止
 
                
 
@@ -2539,7 +2539,7 @@ class GenerationMixin:
                 return_dict=True,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
-            )
+            ) #-2210
 
             if synced_gpus and this_peer_finished:
                 cur_len = cur_len + 1
@@ -2552,13 +2552,13 @@ class GenerationMixin:
             next_token_scores = nn.functional.log_softmax(
                 next_token_logits, dim=-1
             )  # (batch_size * num_beams, vocab_size)
-            next_token_scores_keep = next_token_scores
+            next_token_scores_keep = next_token_scores #这个是干嘛的，新增没看懂
             # print(logits_processor, logits_warper)
             next_token_scores_processed = logits_processor(input_ids, next_token_scores)
-            next_token_scores_processed = logits_warper(input_ids, next_token_scores_processed)
-            next_token_scores = next_token_scores_processed + beam_scores[:, None].expand_as(next_token_scores)
+            next_token_scores_processed = logits_warper(input_ids, next_token_scores_processed) #多加了一遍处理
+            next_token_scores = next_token_scores_processed + beam_scores[:, None].expand_as(next_token_scores) #这块一样-2225
 
-            if model_kwargs['use_switch']:
+            if model_kwargs['use_switch']: #自己加的
                 # print(logits_processor, logits_warper)
                 switch_criteria_teacher = next_token_scores_keep
                 # compute total variation. 
@@ -2571,9 +2571,9 @@ class GenerationMixin:
                 # print(torch.topk(switch_criteria_teacher, dim=-1, k=2), torch.topk(switch_criteria_student, dim=-1, k=2))
                 batch_tv = torch.abs(switch_criteria_teacher.exp() - switch_criteria_student.exp()).sum(dim=-1)
                 batch_switch = (batch_tv < 0.1)
-                print(batch_tv, batch_switch)
+                print(batch_tv, batch_switch) #为止谁来告诉我这个switch到底干什么
 
-            # Store scores, attentions and hidden_states when required
+            # Store scores, attentions and hidden_states when required #-2227
             if return_dict_in_generate:
                 if output_scores:
                     scores += (next_token_scores_processed,)
@@ -2591,7 +2591,7 @@ class GenerationMixin:
                         else (outputs.hidden_states,)
                     )
 
-            if False and model_kwargs['teacher_student']:
+            if False and model_kwargs['teacher_student']: #作者自己增加的，不过处于关闭状态无所谓
                 vocab_size = next_token_scores.shape[-1]
                 # cap_student = torch.sum(next_token_logits_student * next_token_logits_student.exp(), 
                 #                             dim=-1)
@@ -2623,7 +2623,7 @@ class GenerationMixin:
                
 
 
-            elif model_kwargs['teacher_student']:
+            elif model_kwargs['teacher_student']: #加
 
                 if model_kwargs['use_cap_student']: 
                     # print(next_token_logits_student.shape, cap_student.shape) 
@@ -2669,8 +2669,8 @@ class GenerationMixin:
                 # print(student_scores.exp())
                 # print(next_token_scores_keep.exp())
                 # print(next_token_scores_keep - student_scores)
-            else:
-                vocab_size = next_token_scores.shape[-1]
+            else: #为止
+                vocab_size = next_token_scores.shape[-1] #-2246原版的没改，奇怪了这个逻辑
                 next_token_scores = next_token_scores.view(batch_size, num_beams * vocab_size)
                 next_token_scores, next_tokens = torch.topk(
                     next_token_scores, 2 * num_beams, dim=1, largest=True, sorted=True
@@ -2678,7 +2678,7 @@ class GenerationMixin:
                 next_indices = torch_int_div(next_tokens, vocab_size)
                 next_tokens = next_tokens % vocab_size
 
-            # stateless
+            # stateless 
             beam_outputs = beam_scorer.process(
                 input_ids,
                 next_token_scores,
@@ -2702,13 +2702,13 @@ class GenerationMixin:
                 model_kwargs["past"] = self._reorder_cache(model_kwargs["past"], beam_idx)
 
 
-            if model_kwargs['teacher_student']:
+            if model_kwargs['teacher_student']: #加的
                 model_kwargs_student = self._update_model_kwargs_for_generation(
                     outputs_student, model_kwargs_student, is_encoder_decoder=self.config.is_encoder_decoder
                 )
                 if model_kwargs_student["past"] is not None:
                     model_kwargs_student["past"] = self._reorder_cache(model_kwargs_student["past"], beam_idx)
-                    model_kwargs_student["useprompt"] = False 
+                    model_kwargs_student["useprompt"] = False #为止
 
 
             if return_dict_in_generate and output_scores:
@@ -2763,7 +2763,7 @@ class GenerationMixin:
             return sequence_outputs["sequences"]
 
 
-    def beam_search_contra(
+    def beam_search_contra( #完全自己加的这一整个模块
         self,
         input_ids: torch.LongTensor,
         beam_scorer: BeamScorer,
@@ -3043,7 +3043,7 @@ class GenerationMixin:
             return sequence_outputs["sequences"]
 
 
-    def beam_sample(
+    def beam_sample( #-2330似乎没变
         self,
         input_ids: torch.LongTensor,
         beam_scorer: BeamScorer,
@@ -3361,7 +3361,7 @@ class GenerationMixin:
         else:
             return sequence_outputs["sequences"]
 
-    def group_beam_search(
+    def group_beam_search( #-2648
         self,
         input_ids: torch.LongTensor,
         beam_scorer: BeamScorer,
@@ -4065,4 +4065,4 @@ def top_k_top_p_filtering(
     if 0 <= top_p <= 1.0:
         logits = TopPLogitsWarper(top_p=top_p, min_tokens_to_keep=min_tokens_to_keep)(None, logits)
 
-    return logits
+    return logits #基本上无变化
