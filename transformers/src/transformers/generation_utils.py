@@ -1218,7 +1218,7 @@ class GenerationMixin:
             model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(
                 inputs_tensor, model_kwargs, model_input_name
             )
-            # print(inputs_tensor, 'input_tensor', model_kwargs['attention_mask'], 'attn_mask') 
+            # print(inputs_tensor, 'input_tensor', model_kwargs['attention_mask'], 'attn_mask')   #这块是新增的，但是很奇怪用的一般是decoder模型，不大明白这个debug是干什么
             if model_kwargs['teacher_student']: #DEBUG
                 if False: # DEBUG 
                     print('using base inputs for students')
@@ -1281,7 +1281,7 @@ class GenerationMixin:
         is_greedy_gen_mode = (
             (num_beams == 1) and (num_beam_groups == 1) and do_sample is False and not is_constraint_gen_mode
         )
-        is_contra_gen_mode = (
+        is_contra_gen_mode = (    #新增选项配合，对比解码
             (num_beams > 1) and (num_beam_groups == 1) and do_sample is False and not is_constraint_gen_mode and (model_kwargs.get('train_contra_reg', None) == True)
         )
         is_sample_gen_mode = (
@@ -1337,7 +1337,7 @@ class GenerationMixin:
                     f"num_return_sequences has to be 1, but is {num_return_sequences} when doing greedy search."
                 )
 
-            if model_kwargs['teacher_student']:
+            if model_kwargs['teacher_student']:  #新增的，
                 print('setting the adaptive thresholding')
                 relative_top = None 
             else:
@@ -1367,7 +1367,7 @@ class GenerationMixin:
                     num_beams=num_beams,
                     renormalize_logits=renormalize_logits,
                 )
-                print(logits_warper_student)
+                print(logits_warper_student) #为止
 
             # 10. run greedy search
             return self.greedy_search(
@@ -1385,7 +1385,7 @@ class GenerationMixin:
             )
 
         elif is_sample_gen_mode:
-            # 10. prepare logits warper
+            # 10. prepare logits warper #新增的-1301
             if model_kwargs['teacher_student']:
                 print('setting the adaptive thresholding')
                 relative_top = 0.1 #None 
@@ -1396,7 +1396,7 @@ class GenerationMixin:
             logits_warper = self._get_logits_warper(
                 top_k=top_k,
                 top_p=top_p,
-                relative_top=relative_top,
+                relative_top=relative_top,  #新增的logits选项
                 typical_p=typical_p,
                 temperature=temperature,
                 num_beams=num_beams,
@@ -1416,7 +1416,7 @@ class GenerationMixin:
                     num_beams=num_beams,
                     renormalize_logits=renormalize_logits,
                 )
-                print(logits_warper_student)
+                print(logits_warper_student)  #为止-
 
             # 11. expand input_ids with `num_return_sequences` additional sequences per batch
             input_ids, model_kwargs = self._expand_inputs_for_generation(
@@ -1431,7 +1431,7 @@ class GenerationMixin:
                 input_ids,
                 logits_processor=logits_processor,
                 logits_warper=logits_warper,
-                logits_warper_student=logits_warper_student,
+                logits_warper_student=logits_warper_student,  #新增选项
                 stopping_criteria=stopping_criteria,
                 pad_token_id=pad_token_id,
                 eos_token_id=eos_token_id,
@@ -1462,7 +1462,7 @@ class GenerationMixin:
                 input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs
             )
 
-            # analysis
+            # analysis。 #新增的
             logits_warper = self._get_logits_warper(
                 top_k=top_k,
                 top_p=top_p,
@@ -1485,14 +1485,14 @@ class GenerationMixin:
                 num_beams=num_beams,
                 renormalize_logits=renormalize_logits,
             )
-            print(logits_warper_student) 
+            print(logits_warper_student) # 为止
 
-            # 12. run beam search
+            # 12. run beam search  #-1353
             return self.beam_search_contra(
                 input_ids,
                 beam_scorer,
-                logits_warper=logits_warper,
-                logits_warper_student=logits_warper_student,
+                logits_warper=logits_warper,  #新增的
+                logits_warper_student=logits_warper_student, #新增的
                 logits_processor=logits_processor,
                 stopping_criteria=stopping_criteria,
                 pad_token_id=pad_token_id,
@@ -1504,22 +1504,22 @@ class GenerationMixin:
             )
 
         elif is_beam_gen_mode:
-            if num_return_sequences > num_beams:
+            if num_return_sequences > num_beams:  #新增的
                 raise ValueError("`num_return_sequences` has to be smaller or equal to `num_beams`.")
 
-            if stopping_criteria.max_length is None:
+            if stopping_criteria.max_length is None: #新增的
                 raise ValueError("`max_length` needs to be a stopping_criteria for now.")
-
-            # 10. prepare beam search scorer
+           #少了一个 # 10. prepare logits warper
+            # 10. prepare beam search scorer  #-1380
             beam_scorer = BeamSearchScorer(
                 batch_size=batch_size,
                 num_beams=num_beams,
                 device=inputs_tensor.device,
                 length_penalty=length_penalty,
                 do_early_stopping=early_stopping,
-                num_beam_hyps_to_keep=num_return_sequences,
+                num_beam_hyps_to_keep=num_return_sequences,# 多了一个
             )
-            # 11. interleave input_ids with `num_beams` additional sequences per batch
+            # 11. interleave input_ids with `num_beams` additional sequences per batch。#大改原来的input_ids, model_kwargs没有了，下面的都是新增的
 
              # DEBUG. 
             print(model_kwargs['teacher_student'])
@@ -1528,12 +1528,12 @@ class GenerationMixin:
                     input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs['model_kwargs_student'],
                 ) 
 
-            input_ids, model_kwargs = self._expand_inputs_for_generation(
-                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs
+            input_ids, model_kwargs = self._expand_inputs_for_generation( #原来的保留了，有一点点不一样-1390
+                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs # 原本的是 expand_size=num_beams * num_return_sequences,
             )
 
 
-            # analysis
+            # analysis #自己改的
             # LISA 
 
             top_k = None 
@@ -1613,9 +1613,9 @@ class GenerationMixin:
                 expand_size=num_beams * num_return_sequences,
                 is_encoder_decoder=self.config.is_encoder_decoder,
                 **model_kwargs,
-            )
+            )  #为止都是自己改的
 
-            # 13. run beam sample
+            # 13. run beam sample  #-1397
             return self.beam_sample(
                 input_ids,
                 beam_scorer,
@@ -1754,8 +1754,8 @@ class GenerationMixin:
         self,
         input_ids: torch.LongTensor,
         logits_processor: Optional[LogitsProcessorList] = None,
-        logits_warper: Optional[LogitsProcessorList] = None,
-        logits_warper_student: Optional[LogitsProcessorList] = None,
+        logits_warper: Optional[LogitsProcessorList] = None, #新增的
+        logits_warper_student: Optional[LogitsProcessorList] = None,  #新增的
         stopping_criteria: Optional[StoppingCriteriaList] = None,
         max_length: Optional[int] = None,
         pad_token_id: Optional[int] = None,
