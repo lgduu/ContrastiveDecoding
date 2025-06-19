@@ -1,4 +1,4 @@
-import torch 
+import torch #这一整个文件完全是自己写的
 
 def mi(logits_teacher, logits_student, **kwargs):
     '''
