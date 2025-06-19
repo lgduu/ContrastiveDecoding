@@ -209,7 +209,7 @@ class TopPLogitsWarper(LogitsWarper):
         return scores
 
 
-class EntrPLogitsWarper(LogitsWarper):
+class EntrPLogitsWarper(LogitsWarper): #自己加的
     """
     [`LogitsWarper`] that performs top-p, i.e. restricting to top tokens summing to prob_cut_off <= prob_cut_off.
 
@@ -244,7 +244,7 @@ class EntrPLogitsWarper(LogitsWarper):
         scores_normalized[scores_normalized < probs_thresh] = self.filter_value
         return scores_normalized 
 
-class MinProbLogitsWarper(LogitsWarper):
+class MinProbLogitsWarper(LogitsWarper): #就这两个自己加的
     r"""
     [`LogitsWarper`] that performs top-k, i.e. restricting to the k highest probability elements.
 
